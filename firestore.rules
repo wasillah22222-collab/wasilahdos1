@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isOwnerOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    // Users Collection
+    // Users can read all profiles, but only update their own or if admin
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwnerOrAdmin(userId);
+      allow delete: if isAdmin();
+    }
+
+    // Project Submissions Collection
+    // Authenticated users can create, owners and admins can update/delete
+    match /project_submissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.submittedBy || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (request.auth.uid == resource.data.submittedBy || isAdmin());
+    }
+
+    // Event Submissions Collection
+    // Same rules as project submissions
+    match /event_submissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.submittedBy || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (request.auth.uid == resource.data.submittedBy || isAdmin());
+    }
+
+    // Hero Content Collection
+    // Public read, admin write
+    match /hero_content/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Programs Collection
+    // Public read, admin write
+    match /programs/{programId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Testimonials Collection
+    // Public read approved testimonials, admin write
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Leaders Collection
+    // Public read active leaders, admin write
+    match /leaders/{leaderId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Editable Content Collection
+    // Public read, admin write
+    match /editableContent/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Volunteer Applications Collection
+    // Authenticated users can create, owners and admins can read/update
+    match /volunteer_applications/{applicationId} {
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == resource.data.submittedBy || isAdmin());
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Contact Messages Collection
+    // Anyone can create, only admins can read/update
+    match /contact_messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // System Collection (for connection tests and system data)
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
